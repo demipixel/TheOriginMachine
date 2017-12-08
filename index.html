@@ -1,0 +1,205 @@
+<html>
+  <head>
+    <script src="https://code.jquery.com/jquery-3.2.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.12.3/umd/popper.min.js" integrity="sha384-vFJXuSJphROIrBnz7yo7oB41mKfc8JzQZiCq4NCceLEaO4IHwicKwpJf9c9IpFgh" crossorigin="anonymous"></script>
+
+    <link href="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-PsH8R72JQ3SOdhVi3uxftmaW6Vc51MKb0q5P2rRUpPvrszuE4W1povHYgTpBfshb" crossorigin="anonymous">
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.0.0-beta.2/js/bootstrap.min.js" integrity="sha384-alpBpkh1PFOepccYVYDB4do5UnbKysX5WZXm3XxPqe5iKTfUKjNkCk9SaVuEZflJ" crossorigin="anonymous"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.7.1/Chart.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/randomcolor/0.5.2/randomColor.min.js"></script>
+
+    <!-- <script src="./words.json"></script> -->
+
+    <script>
+      var WORD_TO_ORIGIN = {};
+      var ORIGIN_COLOR = {};
+
+      var originPieChart = null;
+      $(document).ready(function() {
+        $('#text').keyup(function(e) {
+          update();
+          handleScroll();
+        });
+
+        $('#text').scroll(handleScroll);
+
+        originPieChart = new Chart(document.getElementById('originCanvas').getContext('2d') ,{
+          type: 'pie',
+          data: {
+            datasets: [{ data: [], backgroundColor: [] }],
+            labels: []
+          },
+          options: {}
+        });
+
+        var lastElement = null;
+        $(document).mousemove(function(e) {
+          var text = document.getElementById('text');
+          text.style.display = 'none';
+          var element = document.elementFromPoint(e.clientX, e.clientY);
+          if (lastElement != element) {
+            if (lastElement) $(lastElement).mouseleave();
+            $(element).mouseenter();
+          }
+          lastElement = element;
+          text.style.display = 'initial';
+        });
+      });
+
+      var AVAILABLE_COLORS = ['#ffccff', '#ffcc66', '#ccff99', '#66ccff', '#cc66ff'];
+
+      function update() {
+        var text = document.getElementById('text').value;
+
+        var labels = originPieChart.data.labels;
+        var dataBackgroundColor = originPieChart.data.datasets[0].backgroundColor;
+        var data = [];
+        text = text.split(' ').map(function(originalWord) {
+          var withCaseWord = originalWord.replace(/[^a-zA-Z'-]/g, '')
+          var word = withCaseWord.toLowerCase();
+          var before = originalWord.toLowerCase() != -1 ? originalWord.slice(0, originalWord.toLowerCase().indexOf(word)) : '';
+          var after = originalWord.toLowerCase().replace(word, '').replace(before, '');
+
+          if (!word) return;
+
+          if (WORD_TO_ORIGIN[word] === undefined) {
+            WORD_TO_ORIGIN[word] = 0;
+            $.get('http://162.243.86.52:4001/?w='+word, function(origin) {
+              WORD_TO_ORIGIN[word] = typeof origin == 'string' ? JSON.parse(origin) : origin;
+              update();
+            });
+          }
+
+          var origin = WORD_TO_ORIGIN[word] ? WORD_TO_ORIGIN[word].origin : null;
+
+          var color = ORIGIN_COLOR[origin];
+          if (!ORIGIN_COLOR[origin]) {
+            if (origin) {
+              color = AVAILABLE_COLORS.length ? AVAILABLE_COLORS.shift() : randomColor({ luminosity: 'light' });
+              ORIGIN_COLOR[origin] = color;
+            } else {
+              color = '#fff';
+            }
+          }
+
+          var labelsIndex = labels.indexOf(origin)
+          if (labelsIndex != -1) {
+            if (!data[labelsIndex]) data[labelsIndex] = 1;
+            else data[labelsIndex]++;
+          } else if (origin != null) {
+            labels.push(origin);
+            data.push(1);
+            dataBackgroundColor.push(color);
+          }
+
+          text += '<br>';
+          var originTooltip = !WORD_TO_ORIGIN[word] ? 'No detected origin' : $('<span>'+WORD_TO_ORIGIN[word].full+'</span>').text();
+
+          var replacement = before+'<span data-toggle="tooltip" title="'+originTooltip+'"><mark style="background-color: '+color+'">'+withCaseWord+'</mark></span>'+after;
+          // text = text.replace(new RegExp('(^|[^a-zA-Z\'-])('+word+')($|[^a-zA-Z\'-])', 'gi'), replacement);
+
+          return replacement;
+        }).join(' ') + '<br><br>';
+
+        for (let i = labels.length - 1; i >= 0; i--) {
+          if (!data[i]) {
+            labels.splice(i, 1);
+            data.splice(i, 1);
+            dataBackgroundColor.splice(i, 1);
+          }
+        }
+
+        originPieChart.data.datasets[0].data = data;
+        originPieChart.update();
+
+        document.getElementById('highlights').innerHTML = text;
+
+        $('[data-toggle="tooltip"]').tooltip({
+          placement: 'bottom'
+        });
+      }
+
+      function handleScroll() {
+        var scrollTop = $('#text').scrollTop();
+        $('.backdrop').scrollTop(scrollTop);
+      }
+
+    </script>
+    <style>
+
+    @import url(https://fonts.googleapis.com/css?family=Open+Sans);
+
+    div.tooltip-inner {
+        max-width: 500px !important;
+    }
+
+    .backdrop {
+      position: absolute;
+      z-index: 1;
+      border: 2px solid #685972;
+      background-color: #fff;
+      overflow: auto;
+      transition: transform 1s;
+    }
+
+    #highlights {
+        white-space: pre-wrap;
+        word-wrap: break-word;
+        color: transparent;
+    }
+
+    textarea {
+      display: block;
+      position: absolute;
+      z-index: 2;
+      margin: 0;
+      border: 2px solid #74637f;
+      border-radius: 0;
+      color: #444;
+      background-color: transparent;
+      overflow: auto;
+      resize: none;
+      transition: transform 1s;
+    }
+
+    mark {
+      border-radius: 5px;
+      color: transparent;
+      background-color: #b1d5e5;
+      padding: 0px;
+    }
+
+    .container, .backdrop, textarea {
+      width: 650px;
+      height: 350px;
+    }
+
+    #highlights, textarea {
+      padding: 10px;
+      font: 40px/48px 'Open Sans', sans-serif;
+      letter-spacing: 1px;
+      line-height: 60px;
+    }
+
+    </style>
+  </head>
+  <body>
+    <div class="container" style="position: relative">
+      <div style="text-align: center">
+        <h1>The Origin Machine</h1>
+      </div>
+
+      <div class="backdrop">
+          <div id="highlights">
+              <!-- cloned text with <mark> tags here -->
+          </div>
+      </div>
+      <textarea rows="7" id="text" placeholder="Start typing words..."></textarea>
+    </div>
+    <div class="container" style="text-align: center">
+      <div style="width: 500; height: 500; position: relative; top: 75px; left: 60px;">
+        <canvas id="originCanvas" width=250 height=250></canvas>
+      </div>
+    </div>
+  </body>
+</html>
