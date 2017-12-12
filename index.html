@@ -54,52 +54,56 @@
         var labels = originPieChart.data.labels;
         var dataBackgroundColor = originPieChart.data.datasets[0].backgroundColor;
         var data = [];
-        text = text.split(' ').map(function(originalWord) {
-          var withCaseWord = originalWord.replace(/[^a-zA-Z'-]/g, '')
-          var word = withCaseWord.toLowerCase();
-          var before = originalWord.toLowerCase() != -1 ? originalWord.slice(0, originalWord.toLowerCase().indexOf(word)) : '';
-          var after = originalWord.toLowerCase().replace(word, '').replace(before, '');
+        text = text.split('\n').map(line => {
+          return line.split(' ').map(function(originalWord) {
+            var withCaseWord = originalWord.replace(/[^a-zA-Z'-]/g, '')
+            var word = withCaseWord.toLowerCase();
+            var before = originalWord.toLowerCase() != -1 ? originalWord.slice(0, originalWord.toLowerCase().indexOf(word)) : '';
+            var after = originalWord.toLowerCase().replace(word, '').replace(before, '');
 
-          if (!word) return;
+            if (!word) return;
 
-          if (WORD_TO_ORIGIN[word] === undefined) {
-            WORD_TO_ORIGIN[word] = 0;
-            $.get('http://162.243.86.52:4001/?w='+word, function(origin) {
-              WORD_TO_ORIGIN[word] = typeof origin == 'string' ? JSON.parse(origin) : origin;
-              update();
-            });
-          }
-
-          var origin = WORD_TO_ORIGIN[word] ? WORD_TO_ORIGIN[word].origin : null;
-
-          var color = ORIGIN_COLOR[origin];
-          if (!ORIGIN_COLOR[origin]) {
-            if (origin) {
-              color = AVAILABLE_COLORS.length ? AVAILABLE_COLORS.shift() : randomColor({ luminosity: 'light' });
-              ORIGIN_COLOR[origin] = color;
-            } else {
-              color = '#fff';
+            if (WORD_TO_ORIGIN[word] === undefined) {
+              WORD_TO_ORIGIN[word] = 0;
+              $.get('http://162.243.86.52:4001/?w='+word, function(origin) {
+                WORD_TO_ORIGIN[word] = typeof origin == 'string' ? JSON.parse(origin) : origin;
+                update();
+              });
             }
-          }
 
-          var labelsIndex = labels.indexOf(origin)
-          if (labelsIndex != -1) {
-            if (!data[labelsIndex]) data[labelsIndex] = 1;
-            else data[labelsIndex]++;
-          } else if (origin != null) {
-            labels.push(origin);
-            data.push(1);
-            dataBackgroundColor.push(color);
-          }
+            var origin = WORD_TO_ORIGIN[word] ? WORD_TO_ORIGIN[word].origin : null;
 
-          text += '<br>';
-          var originTooltip = !WORD_TO_ORIGIN[word] ? 'No detected origin' : $('<span>'+WORD_TO_ORIGIN[word].full+'</span>').text();
+            var color = ORIGIN_COLOR[origin];
+            if (!ORIGIN_COLOR[origin]) {
+              if (origin) {
+                color = AVAILABLE_COLORS.length ? AVAILABLE_COLORS.shift() : randomColor({ luminosity: 'light' });
+                ORIGIN_COLOR[origin] = color;
+              } else {
+                color = '#fff';
+              }
+            }
 
-          var replacement = before+'<span data-toggle="tooltip" title="'+originTooltip+'"><mark style="background-color: '+color+'">'+withCaseWord+'</mark></span>'+after;
-          // text = text.replace(new RegExp('(^|[^a-zA-Z\'-])('+word+')($|[^a-zA-Z\'-])', 'gi'), replacement);
+            var labelsIndex = labels.indexOf(origin)
+            if (labelsIndex != -1) {
+              if (!data[labelsIndex]) data[labelsIndex] = 1;
+              else data[labelsIndex]++;
+            } else if (origin != null) {
+              labels.push(origin);
+              data.push(1);
+              dataBackgroundColor.push(color);
+            }
 
-          return replacement;
-        }).join(' ') + '<br><br>';
+            text += '<br>';
+            let originTooltip = !WORD_TO_ORIGIN[word] ? null : $('<span>'+WORD_TO_ORIGIN[word].full+'</span>').text();
+
+            if (originTooltip == 'undefined' || !originTooltip) {
+              originTooltip = 'No detected origin';
+            }
+
+            return before+'<span data-toggle="tooltip" title="'+originTooltip+'"><mark style="background-color: '+color+'">'+withCaseWord+'</mark></span>'+after;
+            // text = text.replace(new RegExp('(^|[^a-zA-Z\'-])('+word+')($|[^a-zA-Z\'-])', 'gi'), replacement);
+          }).join(' ');
+        }).join('<br>') + '<br><br>';
 
         for (let i = labels.length - 1; i >= 0; i--) {
           if (!data[i]) {
@@ -187,6 +191,11 @@
     <div class="container" style="position: relative">
       <div style="text-align: center">
         <h1>The Origin Machine</h1>
+        <h6>
+          Type words in the textbox!<br>
+          Hover over words to see their detailed origin.<br>
+          Words are colored based on their language of origin.
+        </h6>
       </div>
 
       <div class="backdrop">
@@ -197,7 +206,7 @@
       <textarea rows="7" id="text" placeholder="Start typing words..."></textarea>
     </div>
     <div class="container" style="text-align: center">
-      <div style="width: 500; height: 500; position: relative; top: 75px; left: 60px;">
+      <div style="width: 500; height: 500; position: relative; top: 125px; left: 60px;">
         <canvas id="originCanvas" width=250 height=250></canvas>
       </div>
     </div>
